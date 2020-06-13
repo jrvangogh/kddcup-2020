@@ -1,9 +1,38 @@
+from collections import defaultdict
+
+
+GAMMA = 0.9
+ALPHA = 0.5
+
+
+def get_loc_key(location):
+    return int(location[0] * 100), int(location[1] * 100)
+
+
 class Agent(object):
     """ Agent for dispatching and reposition """
 
     def __init__(self):
         """ Load your trained model and initialize the parameters """
-        pass
+        self.state_values = defaultdict(lambda: 0.0)
+        self.max_distance = 0.0
+
+    def calc_order_value(self, order):
+        loc_key = get_loc_key(order['order_finish_location'])
+        # TODO: basic cancel model using order_driver_distance
+        return order['reward_units'] + GAMMA * self.state_values[loc_key]
+
+    def calc_current_value(self, order):
+        loc_key = get_loc_key(order['driver_location'])
+        return self.state_values[loc_key]
+
+    def update_state_value(self, order):
+        s0 = get_loc_key(order['driver_location'])
+        self.state_values[s0] += ALPHA * (order['order_value'] - order['current_value'])
+
+    def update_state_value_not_assigned(self, driver_location):
+        loc_key = get_loc_key(driver_location)
+        self.state_values[loc_key] *= (1 + ALPHA * GAMMA - ALPHA)
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -23,17 +52,30 @@ class Agent(object):
         :return: a list of dict, the key in the dict includes:
                 order_id and driver_id, the pair indicating the assignment
         """
-        dispatch_observ.sort(key=lambda od_info: od_info['reward_units'], reverse=True)
+        for order in dispatch_observ:
+            order['current_value'] = self.calc_current_value(order)
+            order['order_value'] = self.calc_order_value(order)
+        dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
         assigned_order = set()
         assigned_driver = set()
+        all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
+            all_driver_locs[od['driver_id']] = od['order_driver_location']
+            if od['order_value'] < od['current_value']:
+                # Stop once driver orders are negative value
+                break
             # make sure each order is assigned to one driver, and each driver is assigned with one order
-            if (od["order_id"] in assigned_order) or (od["driver_id"] in assigned_driver):
+            if (od['order_id'] in assigned_order) or (od['driver_id'] in assigned_driver):
                 continue
-            assigned_order.add(od["order_id"])
-            assigned_driver.add(od["driver_id"])
-            dispatch_action.append(dict(order_id=od["order_id"], driver_id=od["driver_id"]))
+            assigned_order.add(od['order_id'])
+            assigned_driver.add(od['driver_id'])
+            dispatch_action.append(dict(order_id=od['order_id'], driver_id=od['driver_id']))
+            self.update_state_value(od)
+
+        for driver_id, driver_loc in all_driver_locs.items():
+            if driver_id not in assigned_driver:
+                self.update_state_value_not_assigned(driver_loc)
         return dispatch_action
 
     def reposition(self, repo_observ):

@@ -109,7 +109,7 @@ In particular, the `local_test.py` gives an example of how your submission will 
 
 ## Get ready for submission
 
-When you are ready to submit, zip the `model` folder while making sure no extra directories are created within the zip, e.g., go inside the `model` folder and run `zip -r ../submission.zip . -x '*.git*' -x '*__pycache__*'` which creates your submission bundle `submission.zip` just outside of the `model` folder.
+When you are ready to submit, zip the `model` folder while making sure no extra directories are created within the zip, e.g., go inside the `model` folder and run `zip -r ../result.zip model -x '*.git*' -x '*__pycache__*'` which creates your submission bundle `submission.zip` just outside of the `model` folder.
 
 Finally head over to the [competition website](https://biendata.com/competition/kdd_didi/) to see how your algorithm performs!
 
