@@ -61,7 +61,7 @@ class Agent(object):
         all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = od['order_driver_location']
+            all_driver_locs[od['driver_id']] = od['driver_location']
             if od['order_value'] < od['current_value']:
                 # Stop once driver orders are negative value
                 break
