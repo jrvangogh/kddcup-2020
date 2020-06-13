@@ -21,5 +21,5 @@ RUN conda env create -f environment.yml
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "kddcup", "/bin/bash", "-c"]
 
-ENTRYPOINT ["python", "local_test.py"]
+ENTRYPOINT ["conda", "run", "-n", "kddcup", "python3", "local_test.py"]
 

@@ -38,7 +38,7 @@ Please contact the organizers (kddcup2020@didiglobal.com) if you have any proble
 
 ## Quickstart
 
-Clone this repo. Create your submission bundle by zipping the whole `model` folder. Make sure **no extra directories are created within the zip**, e.g., `zip -j submission.zip model/*`. And head over to the [competition website](https://biendata.com/competition/kdd_didi/) for your first submission!
+Clone this repo. Create your submission bundle by zipping the whole `model` folder. Make sure **no extra directories are created within the zip**, e.g., `zip -j result.zip model/*`. And head over to the [competition website](https://biendata.com/competition/kdd_didi/) for your first submission!
 
 ## Implement your own dispatch and reposition agent!
 

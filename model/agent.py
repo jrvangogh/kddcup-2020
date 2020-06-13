@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-# @File: agent.py
-# @Author: Xiaocheng Tang
-# @Date:     2020-03-17 17:03:34
-
-
 class Agent(object):
     """ Agent for dispatching and reposition """
 
