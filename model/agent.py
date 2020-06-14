@@ -1,4 +1,5 @@
 from collections import defaultdict
+import numpy as np
 
 
 GAMMA = 0.9
@@ -7,6 +8,11 @@ ALPHA = 0.5
 
 def get_loc_key(location):
     return int(location[0] * 100), int(location[1] * 100)
+
+
+def cancel_probability(order_driver_distance):
+    """Determined in cancel_prob.ipynb"""
+    return 1 / (np.exp(4.39349586 - 0.00109042 * order_driver_distance) + 1) + 0.02
 
 
 class Agent(object):
@@ -19,8 +25,8 @@ class Agent(object):
 
     def calc_order_value(self, order):
         loc_key = get_loc_key(order['order_finish_location'])
-        # TODO: basic cancel model using order_driver_distance
-        return order['reward_units'] + GAMMA * self.state_values[loc_key]
+        cancel_prob = cancel_probability(order['order_driver_distance'])
+        return (1 - cancel_prob) * order['reward_units'] + GAMMA * self.state_values[loc_key]
 
     def calc_current_value(self, order):
         loc_key = get_loc_key(order['driver_location'])
