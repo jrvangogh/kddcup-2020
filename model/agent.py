@@ -66,12 +66,12 @@ class Agent(object):
         assigned_driver = set()
         all_driver_locs = {}
         dispatch_action = []
-        stop_at = int(0.9 * len(dispatch_observ))
+        # stop_at = int(0.9 * len(dispatch_observ))
         for i, od in enumerate(dispatch_observ):
             all_driver_locs[od['driver_id']] = od['driver_location']
-            if od['order_value'] < od['current_value'] and i > stop_at:
-                # Stop once driver orders are negative value and 90% of orders have been considered
-                break
+            # if od['order_value'] < od['current_value'] and i > stop_at:
+            #     # Stop once driver orders are negative value and 90% of orders have been considered
+            #     break
             # make sure each order is assigned to one driver, and each driver is assigned with one order
             if (od['order_id'] in assigned_order) or (od['driver_id'] in assigned_driver):
                 continue
