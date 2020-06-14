@@ -1,3 +1,7 @@
 .idea/
 model/__pycache__/
 *.zip
+
+data/*
+!data/.gitkeep
+notebooks/.ipynb_checkpoints
