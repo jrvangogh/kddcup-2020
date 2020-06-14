@@ -20,7 +20,7 @@ class Agent(object):
 
     def __init__(self):
         """ Load your trained model and initialize the parameters """
-        self.state_values = defaultdict(lambda: 0.0)
+        self.state_values = defaultdict(lambda: 5.0)
         self.max_distance = 0.0
 
     def calc_order_value(self, order):
