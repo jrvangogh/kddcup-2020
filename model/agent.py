@@ -15,6 +15,13 @@ def cancel_probability(order_driver_distance):
     return 1 / (np.exp(4.39349586 - 0.00109042 * order_driver_distance) + 1) + 0.02
 
 
+class StateModel:
+
+    def __init__(self):
+
+
+
+
 class Agent(object):
     """ Agent for dispatching and reposition """
 
