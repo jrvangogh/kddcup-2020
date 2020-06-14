@@ -3,7 +3,7 @@ import numpy as np
 
 
 GAMMA = 0.9
-ALPHA = 0.5
+ALPHA = 0.25
 
 
 def get_loc_key(location):
