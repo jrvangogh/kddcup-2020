@@ -2,34 +2,50 @@ from collections import defaultdict
 import numpy as np
 
 
-GAMMA = 0.9
-ALPHA = 0.25
+GAMMA = 0.9              # Future reward discount
+ALPHA = 0.25             # SARSA learning rate
+STATE_VALUE_INIT = 4.22  # State values initialized to this (average ride reward in offline data)
 
 
 def cancel_probability(order_driver_distance):
-    """Determined in cancel_prob.ipynb"""
+    """Determined in cancel_prob.ipynb
+
+    This technically goes above 100% starting at 7599 m. Doesn't cause any critical issues though, so we'll save on
+    compute by NOT doing max(cancel_prob, 1.0)
+    """
     return 1 / (np.exp(4.39349586 - 0.00109042 * order_driver_distance) + 1) + 0.02
 
 
 class TileMap:
+    """Stores state values by tiling a (lng, lat) grid
+
+    Longitudes and latitudes are rounded to the nearest 100th (potentially with some offsetting).
+    """
 
     def __init__(self, lng_offset, lat_offset):
-        self.map = defaultdict(lambda: 4.22)  # Average reward in offline data
+        self.map = defaultdict(lambda: STATE_VALUE_INIT)  # Average reward in offline data
         self.lng_offset = lng_offset
         self.lat_offset = lat_offset
 
     def _loc_key(self, location):
+        """Get the key for the map associated with the given location"""
         return int(location[0] * 100 + self.lng_offset), int(location[1] * 100 + self.lat_offset)
 
     def get_state_value(self, location):
+        """Get the state value for the given location"""
         return self.map[self._loc_key(location)]
 
     def update_state_value(self, location, new_value):
+        """Update the state value for the given location based on the given new value
+
+        Updates by ALPHA * (new_value - old_value)
+        """
         key = self._loc_key(location)
         self.map[key] += ALPHA * (new_value - self.map[key])
 
 
 class StateModel:
+    """A state value map that uses a coarse tiling for 4 TileMaps"""
 
     def __init__(self):
         self.tile_maps = [
