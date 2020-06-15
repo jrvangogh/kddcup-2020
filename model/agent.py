@@ -99,6 +99,7 @@ class Agent(object):
         for order in dispatch_observ:
             order['current_value'] = self.calc_current_driver_state_value(order)
             order['order_value'] = self.calc_order_assignment_value(order)
+        # TODO: Consider using 0.9 * current_value here?
         dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
         assigned_order = set()
         assigned_driver = set()
