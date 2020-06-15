@@ -6,20 +6,45 @@ GAMMA = 0.9
 ALPHA = 0.25
 
 
-def get_loc_key(location):
-    return int(location[0] * 100), int(location[1] * 100)
-
-
 def cancel_probability(order_driver_distance):
     """Determined in cancel_prob.ipynb"""
     return 1 / (np.exp(4.39349586 - 0.00109042 * order_driver_distance) + 1) + 0.02
 
 
+class TileMap:
+
+    def __init__(self, lng_offset, lat_offset):
+        self.map = defaultdict(lambda: 4.22)  # Average reward in offline data
+        self.lng_offset = lng_offset
+        self.lat_offset = lat_offset
+
+    def _loc_key(self, location):
+        return int(location[0] * 100 + self.lng_offset), int(location[1] * 100 + self.lat_offset)
+
+    def get_state_value(self, location):
+        return self.map[self._loc_key(location)]
+
+    def update_state_value(self, location, new_value):
+        key = self._loc_key(location)
+        self.map[key] += ALPHA * (new_value - self.map[key])
+
+
 class StateModel:
 
     def __init__(self):
+        self.tile_maps = [
+            TileMap(0.0, 0.0),
+            TileMap(0.5, 0.0),
+            TileMap(0.0, 0.5),
+            TileMap(0.5, 0.5),
+        ]
 
+    def get_state_value(self, location):
+        return sum(self.tile_maps[i].get_state_value(location) for i in range(4)) / 4
 
+    def update_state_value(self, location, new_value):
+        for tile_map in self.tile_maps:
+            tile_map.update_state_value(location, new_value)
 
 
 class Agent(object):
@@ -27,25 +52,15 @@ class Agent(object):
 
     def __init__(self):
         """ Load your trained model and initialize the parameters """
-        self.state_values = defaultdict(lambda: 4.22)  # Average reward in offline data
-        self.max_distance = 0.0
+        self.state_model = StateModel()
 
-    def calc_order_value(self, order):
-        loc_key = get_loc_key(order['order_finish_location'])
-        cancel_prob = cancel_probability(order['order_driver_distance'])
-        return (1 - cancel_prob) * order['reward_units'] + GAMMA * self.state_values[loc_key]
+    def calc_order_assignment_value(self, order):
+        completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
+        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'])
+        return completion_prob * order['reward_units'] + GAMMA * order_finish_state_value
 
-    def calc_current_value(self, order):
-        loc_key = get_loc_key(order['driver_location'])
-        return self.state_values[loc_key]
-
-    def update_state_value(self, order):
-        s0 = get_loc_key(order['driver_location'])
-        self.state_values[s0] += ALPHA * (order['order_value'] - order['current_value'])
-
-    def update_state_value_not_assigned(self, driver_location):
-        loc_key = get_loc_key(driver_location)
-        self.state_values[loc_key] *= (1 + ALPHA * GAMMA - ALPHA)
+    def calc_current_driver_state_value(self, order):
+        return self.state_model.get_state_value(order['driver_location'])
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -66,15 +81,15 @@ class Agent(object):
                 order_id and driver_id, the pair indicating the assignment
         """
         for order in dispatch_observ:
-            order['current_value'] = self.calc_current_value(order)
-            order['order_value'] = self.calc_order_value(order)
+            order['current_value'] = self.calc_current_driver_state_value(order)
+            order['order_value'] = self.calc_order_assignment_value(order)
         dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
         assigned_order = set()
         assigned_driver = set()
         all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = od['driver_location']
+            all_driver_locs[od['driver_id']] = (od['driver_location'], od['current_value'])
             if od['order_value'] < od['current_value']:
                 # Stop once driver orders are negative value
                 break
@@ -84,11 +99,11 @@ class Agent(object):
             assigned_order.add(od['order_id'])
             assigned_driver.add(od['driver_id'])
             dispatch_action.append(dict(order_id=od['order_id'], driver_id=od['driver_id']))
-            self.update_state_value(od)
+            self.state_model.update_state_value(od['driver_location'], od['order_value'])
 
-        for driver_id, driver_loc in all_driver_locs.items():
+        for driver_id, (driver_loc, state_value) in all_driver_locs.items():
             if driver_id not in assigned_driver:
-                self.update_state_value_not_assigned(driver_loc)
+                self.state_model.update_state_value(driver_loc, GAMMA * state_value)
         return dispatch_action
 
     def reposition(self, repo_observ):
