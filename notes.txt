@@ -1,0 +1,9 @@
+Things to try
+* tile coding with time
+* initializing map with offline data
+* update order location state as well
+* models
+  * online forest consisting of queue of trees
+  * shallow net
+* different sizes of location tiling
+* different hyperparameters
