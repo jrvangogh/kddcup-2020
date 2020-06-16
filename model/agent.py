@@ -3,7 +3,7 @@ import numpy as np
 
 
 GAMMA = 0.9              # Future reward discount
-ALPHA = 0.35             # SARSA learning rate
+ALPHA = 0.15             # SARSA learning rate
 STATE_VALUE_INIT = 4.22  # State values initialized to this (average ride reward in offline data)
 
 
