@@ -2,9 +2,10 @@ from collections import defaultdict
 import numpy as np
 
 
-GAMMA = 0.90             # Future reward discount
-ALPHA = 0.25             # SARSA learning rate
-STATE_VALUE_INIT = 4.22  # State values initialized to this (average ride reward in offline data)
+GAMMA = 0.90               # Future reward discount
+UNASSIGNED_PENALTY = 0.99  # Penalty applied to states containing unassigned drivers
+ALPHA = 0.25               # SARSA learning rate
+STATE_VALUE_INIT = 4.22    # State values initialized to this (average ride reward in offline data)
 
 
 def cancel_probability(order_driver_distance):
@@ -120,7 +121,7 @@ class Agent(object):
 
         for driver_id, (driver_loc, state_value) in all_driver_locs.items():
             if driver_id not in assigned_driver:
-                self.state_model.update_state_value(driver_loc, GAMMA * state_value)
+                self.state_model.update_state_value(driver_loc, UNASSIGNED_PENALTY * state_value)
         return dispatch_action
 
     def reposition(self, repo_observ):
