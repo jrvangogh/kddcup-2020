@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 
 
-GAMMA = 0.80             # Future reward discount
+GAMMA = 0.90             # Future reward discount
 ALPHA = 0.25             # SARSA learning rate
 STATE_VALUE_INIT = 4.22  # State values initialized to this (average ride reward in offline data)
 
