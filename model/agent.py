@@ -50,10 +50,11 @@ class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
     def __init__(self):
-        self.tile_maps = [TileMap(lng, lat) for (lng, lat) in product([0.0, 0.25, 0.5], [0.0, 0.25, 0.5])]
+        self.tile_maps = [TileMap(lng, lat) for (lng, lat) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75])]
+        self.num_maps = len(self.tile_maps)
 
     def get_state_value(self, location):
-        return sum(self.tile_maps[i].get_state_value(location) for i in range(4)) / 4
+        return sum(self.tile_maps[i].get_state_value(location) for i in range(self.num_maps)) / self.num_maps
 
     def update_state_value(self, location, new_value):
         for tile_map in self.tile_maps:
