@@ -1,9 +1,10 @@
 from collections import defaultdict
 import numpy as np
+from itertools import product
 
 
 GAMMA = 0.90               # Future reward discount
-UNASSIGNED_PENALTY = 0.99  # Penalty applied to states containing unassigned drivers
+UNASSIGNED_PENALTY = 0.90  # Penalty applied to states containing unassigned drivers
 ALPHA = 0.25               # SARSA learning rate
 STATE_VALUE_INIT = 4.22    # State values initialized to this (average ride reward in offline data)
 
@@ -49,12 +50,7 @@ class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
     def __init__(self):
-        self.tile_maps = [
-            TileMap(0.0, 0.0),
-            TileMap(0.5, 0.0),
-            TileMap(0.0, 0.5),
-            TileMap(0.5, 0.5),
-        ]
+        self.tile_maps = [TileMap(lng, lat) for (lng, lat) in product([0.0, 0.25, 0.5], [0.0, 0.25, 0.5])]
 
     def get_state_value(self, location):
         return sum(self.tile_maps[i].get_state_value(location) for i in range(4)) / 4
