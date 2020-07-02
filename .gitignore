@@ -4,4 +4,4 @@ model/__pycache__/
 
 data/*
 !data/.gitkeep
-notebooks/.ipynb_checkpoints
+*/.ipynb_checkpoints
