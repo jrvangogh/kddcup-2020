@@ -101,7 +101,7 @@ def process_order_files(interim_data_path, processed_data_path):
 
 
 def main():
-    project_path = Path('/mnt/user-home/kddcup-2020')
+    project_path = Path('/Users/jvangogh/JuicySpace/kddcup-2020')
 
     raw_data_path = project_path / 'zip_data'
     interim_data_path = project_path / 'interim_data'
