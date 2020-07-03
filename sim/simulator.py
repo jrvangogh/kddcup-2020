@@ -126,7 +126,10 @@ class Simulator:
             disable_progress_bar: Disables the tqdm progress bar.
         """
         self.agent = agent
-        self.ds = ds
+        if ds.endswith('_small'):
+            self.ds = ds[:-6]
+        else:
+            self.ds = ds
         self.num_powermode_drivers = num_powermode_drivers
         self.order_limit = order_limit
         self.driver_limit = None
