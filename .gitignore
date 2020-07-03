@@ -4,4 +4,9 @@ model/__pycache__/
 
 data/*
 !data/.gitkeep
+
+interim_data/*
+processed_data/*
+zip_data/*
+
 */.ipynb_checkpoints

@@ -25,7 +25,7 @@ DRIVER_POWERMODE_REPOSITION_TIMEOUT = 60 * 5  # Amount of time powermode driver 
 CANCEL_PROB_DISTANCES = list(range(200, 2001, 200))
 
 
-PROCESSED_DATA_PATH = Path(__file__).parent.parent / 'data' / 'processed'
+PROCESSED_DATA_PATH = Path('/Users/jvangogh/JuicySpace/kddcup-2020') / 'processed_data'
 
 
 class DriverState(Enum):
@@ -102,14 +102,15 @@ class Order:
 
 
 class Simulator:
-    def __init__(self,
-                 agent: Agent,
-                 ds: str,
-                 num_powermode_drivers: int = 5,
-                 driver_warmup_time_sec: int = 60,
-                 order_limit: Optional[int] = None,
-                 disable_progress_bar: bool = False
-                 ):
+    def __init__(
+        self,
+        agent: Agent,
+        ds: str,
+        num_powermode_drivers: int = 5,
+        driver_warmup_time_sec: int = 60,
+        order_limit: Optional[int] = None,
+        disable_progress_bar: bool = False,
+    ):
         """Initialize simulator.
 
         All the data is loaded into memory during init. The simulator state can be reset and re-run so the data load

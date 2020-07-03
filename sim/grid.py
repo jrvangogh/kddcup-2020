@@ -10,12 +10,15 @@ from scipy.spatial import cKDTree as KDTree
 from sim.geo import great_circle_distance, local_projection_distance, METERS_PER_DEG_LAT, METERS_PER_DEG_LNG
 
 
+PROJECT_PATH = Path('/Users/jvangogh/JuicySpace/kddcup-2020')
+
+
 class Grid:
     def __init__(self):
         self.grids = collections.OrderedDict()  # type: Dict[str, Tuple[float, float]]
         self.transitions = dict()  # type: Dict[int, Dict[start_grid_id, Dict[str, float]]]
 
-        grid_path = Path(__file__).parent.parent / 'data' / 'interim' / 'hexagon_grid_table.csv'
+        grid_path = PROJECT_PATH / 'interim_data' / 'hexagon_grid_table.csv'
         with grid_path.open('r') as csvfile:
             for row in csv.reader(csvfile):
                 if len(row) != 13:
@@ -32,7 +35,7 @@ class Grid:
         self.kdtree = KDTree([(METERS_PER_DEG_LAT*lat, METERS_PER_DEG_LNG*lng)
                               for lat, lng in self.grids.values()])
 
-        transitions_path = Path(__file__).parent.parent / 'data' / 'interim' / 'idle_transition_probability'
+        transitions_path = PROJECT_PATH / 'interim_data' / 'idle_transition_probability'
         with transitions_path.open('r') as csvfile:
             for row in csv.reader(csvfile):
                 # TODO: verify hour in GMT
