@@ -11,6 +11,7 @@ import pandas as pd
 from scipy.spatial import cKDTree as KDTree
 from tqdm import tqdm
 
+
 from model.agent import Agent
 from sim.geo import (METERS_PER_DEG_LAT, METERS_PER_DEG_LNG, local_projection_distance,
                      local_projection_intermediate_point)
@@ -25,7 +26,7 @@ DRIVER_POWERMODE_REPOSITION_TIMEOUT = 60 * 5  # Amount of time powermode driver 
 CANCEL_PROB_DISTANCES = list(range(200, 2001, 200))
 
 
-PROCESSED_DATA_PATH = Path('/Users/jvangogh/JuicySpace/kddcup-2020') / 'processed_data'
+PROCESSED_DATA_PATH = Path(__file__).parent.parent / 'processed_data'
 
 
 class DriverState(Enum):

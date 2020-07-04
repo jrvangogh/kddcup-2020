@@ -10,7 +10,7 @@ from scipy.spatial import cKDTree as KDTree
 from sim.geo import great_circle_distance, local_projection_distance, METERS_PER_DEG_LAT, METERS_PER_DEG_LNG
 
 
-PROJECT_PATH = Path('/Users/jvangogh/JuicySpace/kddcup-2020')
+PROJECT_PATH = Path(__file__).parent.parent
 
 
 class Grid:

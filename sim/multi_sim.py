@@ -4,6 +4,7 @@ from multiprocessing import Pool
 import json
 import numpy as np
 from datetime import datetime
+import sys
 
 
 DATES = [
@@ -34,8 +35,14 @@ def get_metrics(ds: str):
 
 
 def main():
+    use_small = len(sys.argv) > 1 and sys.argv[1].startswith('s')
     pool = Pool(processes=7)
-    metrics = pool.map(get_metrics, DATES)
+    if use_small:
+        print('Using small versions of orders and drivers')
+        metrics = pool.map(get_metrics, DATES_SMALL)
+    else:
+        print('Using normal versions of orders and drivers')
+        metrics = pool.map(get_metrics, DATES)
     avg_dict = {}
     for k in metrics[0].keys():
         avg_dict[k] = np.mean([m[k] for m in metrics])
@@ -43,7 +50,10 @@ def main():
         'averages': avg_dict,
         'individual_days': metrics
     }
-    output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_output.json'
+    if use_small:
+        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_small.json'
+    else:
+        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_output.json'
     print(f'Saving to {output_file_name}')
     with open(output_file_name, 'wt') as f:
         json.dump(full_output, f, indent=4)
