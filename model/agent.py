@@ -1,4 +1,3 @@
-from collections import defaultdict
 import numpy as np
 from itertools import product
 import os
@@ -33,7 +32,6 @@ class TileMap:
         self.state_value_init = state_value_init
         self.alpha = alpha
         self.map = {}
-        # self.map = defaultdict(lambda: self.state_value_init)  # Average reward in offline data
         self.lng_offset = lng_offset
         self.lat_offset = lat_offset
 
