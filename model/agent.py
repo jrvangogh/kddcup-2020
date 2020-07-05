@@ -2,6 +2,7 @@ import numpy as np
 from itertools import product
 import os
 import pickle
+from datetime import datetime
 
 
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
@@ -28,27 +29,31 @@ class TileMap:
     Longitudes and latitudes are rounded to the nearest 100th (potentially with some offsetting).
     """
 
-    def __init__(self, lng_offset, lat_offset, state_value_init=DEFAULT_SVI, alpha=DEFAULT_ALPHA):
+    def __init__(self, lng_offset, lat_offset, hour_offset, state_value_init=DEFAULT_SVI, alpha=DEFAULT_ALPHA):
         self.state_value_init = state_value_init
         self.alpha = alpha
         self.map = {}
         self.lng_offset = lng_offset
         self.lat_offset = lat_offset
+        self.hour_offset = hour_offset
 
-    def _loc_key(self, location):
+    def _key(self, location, hour):
         """Get the key for the map associated with the given location"""
-        return int(location[0] * 100 + self.lng_offset), int(location[1] * 100 + self.lat_offset)
+        lng_key = int(location[0] * 100 + self.lng_offset)
+        lat_key = int(location[1] * 100 + self.lat_offset)
+        hour_key = ((hour + self.hour_offset) % 24) // 3
+        return lng_key, lat_key, hour_key
 
-    def get_state_value(self, location):
+    def get_state_value(self, location, hour):
         """Get the state value for the given location"""
-        return self.map.get(self._loc_key(location), self.state_value_init)
+        return self.map.get(self._key(location, hour), self.state_value_init)
 
-    def update_state_value(self, location, new_value):
+    def update_state_value(self, location, hour, new_value):
         """Update the state value for the given location based on the given new value
 
         Updates by self.alpha * (new_value - old_value)
         """
-        key = self._loc_key(location)
+        key = self._key(location, hour)
         old_value = self.map.get(key, self.state_value_init)
         self.map[key] = old_value + self.alpha * (new_value - old_value)
 
@@ -57,15 +62,17 @@ class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
     def __init__(self):
-        self.tile_maps = [TileMap(lng, lat) for (lng, lat) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75])]
+        self.tile_maps = [TileMap(lng, lat, hour)
+                          for (lng, lat, hour) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75], [0, 1, 2])]
         self.num_maps = len(self.tile_maps)
 
-    def get_state_value(self, location):
-        return sum(self.tile_maps[i].get_state_value(location) for i in range(self.num_maps)) / self.num_maps
+    def get_state_value(self, location, timestamp):
+        hour = datetime.fromtimestamp(timestamp).hour
+        return sum(self.tile_maps[i].get_state_value(location, hour) for i in range(self.num_maps)) / self.num_maps
 
-    def update_state_value(self, location, new_value):
+    def update_state_value(self, location, hour, new_value):
         for tile_map in self.tile_maps:
-            tile_map.update_state_value(location, new_value)
+            tile_map.update_state_value(location, hour, new_value)
 
 
 class Agent(object):
@@ -85,7 +92,7 @@ class Agent(object):
         with open(output_file_name, 'wb') as f:
             pickle.dump(map_list, f)
 
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=True):
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=False):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
@@ -96,11 +103,11 @@ class Agent(object):
 
     def calc_order_assignment_value(self, order):
         completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
-        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'])
+        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'], order['timestamp'])
         return completion_prob * order['reward_units'] + self.gamma * order_finish_state_value
 
     def calc_current_driver_state_value(self, order):
-        return self.state_model.get_state_value(order['driver_location'])
+        return self.state_model.get_state_value(order['driver_location'], order['timestamp'])
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -130,7 +137,7 @@ class Agent(object):
         all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = (od['driver_location'], od['current_value'])
+            all_driver_locs[od['driver_id']] = (od['driver_location'], od['timestamp'], od['current_value'])
             if od['order_value'] < od['current_value']:
                 # Stop once driver orders are negative value
                 break
@@ -140,11 +147,11 @@ class Agent(object):
             assigned_order.add(od['order_id'])
             assigned_driver.add(od['driver_id'])
             dispatch_action.append(dict(order_id=od['order_id'], driver_id=od['driver_id']))
-            self.state_model.update_state_value(od['driver_location'], od['order_value'])
+            self.state_model.update_state_value(od['driver_location'], od['timestamp'], od['order_value'])
 
-        for driver_id, (driver_loc, state_value) in all_driver_locs.items():
+        for driver_id, (driver_loc, ts, state_value) in all_driver_locs.items():
             if driver_id not in assigned_driver:
-                self.state_model.update_state_value(driver_loc, self.unassigned_penalty * state_value)
+                self.state_model.update_state_value(driver_loc, ts, self.unassigned_penalty * state_value)
         return dispatch_action
 
     def reposition(self, repo_observ):
