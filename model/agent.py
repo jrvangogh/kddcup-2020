@@ -1,12 +1,17 @@
 from collections import defaultdict
 import numpy as np
 from itertools import product
+import os
+import pickle
 
 
-GAMMA = 0.90               # Future reward discount
-UNASSIGNED_PENALTY = 0.90  # Penalty applied to states containing unassigned drivers
-ALPHA = 0.25               # SARSA learning rate
-STATE_VALUE_INIT = 4.22    # State values initialized to this (average ride reward in offline data)
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'saved_state_model.pickle')
+
+
+DEFAULT_GAMMA = 0.90       # Future reward discount
+DEFAULT_UP = 0.90          # Penalty applied to states containing unassigned drivers
+DEFAULT_ALPHA = 0.25       # SARSA learning rate
+DEFAULT_SVI = 4.22         # State values initialized to this (average ride reward in offline data)
 
 
 def cancel_probability(order_driver_distance):
@@ -24,8 +29,11 @@ class TileMap:
     Longitudes and latitudes are rounded to the nearest 100th (potentially with some offsetting).
     """
 
-    def __init__(self, lng_offset, lat_offset):
-        self.map = defaultdict(lambda: STATE_VALUE_INIT)  # Average reward in offline data
+    def __init__(self, lng_offset, lat_offset, state_value_init=DEFAULT_SVI, alpha=DEFAULT_ALPHA):
+        self.state_value_init = state_value_init
+        self.alpha = alpha
+        self.map = {}
+        # self.map = defaultdict(lambda: self.state_value_init)  # Average reward in offline data
         self.lng_offset = lng_offset
         self.lat_offset = lat_offset
 
@@ -35,15 +43,16 @@ class TileMap:
 
     def get_state_value(self, location):
         """Get the state value for the given location"""
-        return self.map[self._loc_key(location)]
+        return self.map.get(self._loc_key(location), self.state_value_init)
 
     def update_state_value(self, location, new_value):
         """Update the state value for the given location based on the given new value
 
-        Updates by ALPHA * (new_value - old_value)
+        Updates by self.alpha * (new_value - old_value)
         """
         key = self._loc_key(location)
-        self.map[key] += ALPHA * (new_value - self.map[key])
+        old_value = self.map.get(key, self.state_value_init)
+        self.map[key] = old_value + self.alpha * (new_value - old_value)
 
 
 class StateModel:
@@ -64,14 +73,28 @@ class StateModel:
 class Agent(object):
     """ Agent for dispatching and reposition """
 
-    def __init__(self):
+    @staticmethod
+    def _load_state_model():
+        with open(MODEL_PATH, 'rb') as f:
+            return pickle.load(f)
+
+    def save_state_model(self, output_file_name):
+        with open(output_file_name, 'wb') as f:
+            pickle.dump(self.state_model, f)
+
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=True):
         """ Load your trained model and initialize the parameters """
-        self.state_model = StateModel()
+        self.gamma = gamma
+        self.unassigned_penalty = unassigned_penalty
+        if load_state_model:
+            self.state_model = self._load_state_model()
+        else:
+            self.state_model = StateModel()
 
     def calc_order_assignment_value(self, order):
         completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
         order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'])
-        return completion_prob * order['reward_units'] + GAMMA * order_finish_state_value
+        return completion_prob * order['reward_units'] + self.gamma * order_finish_state_value
 
     def calc_current_driver_state_value(self, order):
         return self.state_model.get_state_value(order['driver_location'])
@@ -118,7 +141,7 @@ class Agent(object):
 
         for driver_id, (driver_loc, state_value) in all_driver_locs.items():
             if driver_id not in assigned_driver:
-                self.state_model.update_state_value(driver_loc, UNASSIGNED_PENALTY * state_value)
+                self.state_model.update_state_value(driver_loc, self.unassigned_penalty * state_value)
         return dispatch_action
 
     def reposition(self, repo_observ):
