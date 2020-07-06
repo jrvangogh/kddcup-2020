@@ -45,6 +45,9 @@ def main():
     agent = Agent(load_state_model=False)
     use_small = len(sys.argv) > 1 and sys.argv[1].startswith('s')
     ds_list = DATES_SMALL if use_small else DATES
+    print('Running the following:')
+    for ds in ds_list:
+        print(f'    {ds}')
     for ds in ds_list:
         print(f'Running {ds}')
         s = Simulator(agent, ds)
