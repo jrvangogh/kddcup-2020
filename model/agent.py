@@ -3,6 +3,7 @@ from itertools import product
 import os
 import pickle
 from datetime import datetime
+import pytz
 
 
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
@@ -12,6 +13,15 @@ DEFAULT_GAMMA = 0.90       # Future reward discount
 DEFAULT_UP = 0.90          # Penalty applied to states containing unassigned drivers
 DEFAULT_ALPHA = 0.25       # SARSA learning rate
 DEFAULT_SVI = 4.22         # State values initialized to this (average ride reward in offline data)
+
+
+TIMEZONE = pytz.timezone('Asia/Shanghai')
+HOURS_IN_WEEK = 168
+
+
+def ts_to_hour_of_week(timestamp):
+    dt = datetime.fromtimestamp(timestamp, tz=TIMEZONE)
+    return 24 * dt.day + dt.hour
 
 
 def cancel_probability(order_driver_distance):
@@ -41,7 +51,7 @@ class TileMap:
         """Get the key for the map associated with the given location"""
         lng_key = int(location[0] * 100 + self.lng_offset)
         lat_key = int(location[1] * 100 + self.lat_offset)
-        hour_key = ((hour + self.hour_offset) % 24) // 3
+        hour_key = ((hour + self.hour_offset) % HOURS_IN_WEEK) // 3
         return lng_key, lat_key, hour_key
 
     def get_state_value(self, location, hour):
@@ -67,7 +77,7 @@ class StateModel:
         self.num_maps = len(self.tile_maps)
 
     def get_state_value(self, location, timestamp):
-        hour = datetime.fromtimestamp(timestamp).hour
+        hour = ts_to_hour_of_week(timestamp)
         return sum(self.tile_maps[i].get_state_value(location, hour) for i in range(self.num_maps)) / self.num_maps
 
     def update_state_value(self, location, hour, new_value):
