@@ -1,8 +1,13 @@
 from model.agent import Agent
 from sim.simulator import Simulator
 import sys
+from pathlib import Path
+from time import time
 
 from datetime import datetime
+
+
+SAVE_DIR = Path(__file__).parent.parent / 'hot_starts'
 
 
 DATES = [
@@ -42,8 +47,17 @@ DATES_SMALL = [
 
 
 def main():
-    agent = Agent(load_state_model=False)
+    start_time = time()
+
+    SAVE_DIR.mkdir(exist_ok=True)
     use_small = len(sys.argv) > 1 and sys.argv[1].startswith('s')
+    if use_small:
+        output_prefix = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_small'
+    else:
+        output_prefix = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
+    print(f'Using prefix {output_prefix}')
+
+    agent = Agent(load_state_model=False)
     ds_list = DATES_SMALL if use_small else DATES
     print('Running the following:')
     for ds in ds_list:
@@ -52,12 +66,11 @@ def main():
         print(f'Running {ds}')
         s = Simulator(agent, ds)
         s.run()
-    if use_small:
-        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_small_agent.pickle'
-    else:
-        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_full_agent.pickle'
-    print(f'Saving to {output_file_name}')
-    agent.save_state_model(output_file_name)
+        save_path = SAVE_DIR / f'{output_prefix}_{ds}.pickle'
+        agent.save_state_model(save_path)
+
+    end_time = time()
+    print(f'Duration: {(end_time - start_time) / 3600} hours')
 
 
 if __name__ == '__main__':
