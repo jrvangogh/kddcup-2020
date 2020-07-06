@@ -47,23 +47,23 @@ class TileMap:
         self.lat_offset = lat_offset
         self.hour_offset = hour_offset
 
-    def _key(self, location, hour):
+    def _key(self, location, hour_of_week):
         """Get the key for the map associated with the given location"""
         lng_key = int(location[0] * 100 + self.lng_offset)
         lat_key = int(location[1] * 100 + self.lat_offset)
-        hour_key = ((hour + self.hour_offset) % HOURS_IN_WEEK) // 3
+        hour_key = ((hour_of_week + self.hour_offset) % HOURS_IN_WEEK) // 3
         return lng_key, lat_key, hour_key
 
-    def get_state_value(self, location, hour):
+    def get_state_value(self, location, hour_of_week):
         """Get the state value for the given location"""
-        return self.map.get(self._key(location, hour), self.state_value_init)
+        return self.map.get(self._key(location, hour_of_week), self.state_value_init)
 
-    def update_state_value(self, location, hour, new_value):
+    def update_state_value(self, location, hour_of_week, new_value):
         """Update the state value for the given location based on the given new value
 
         Updates by self.alpha * (new_value - old_value)
         """
-        key = self._key(location, hour)
+        key = self._key(location, hour_of_week)
         old_value = self.map.get(key, self.state_value_init)
         self.map[key] = old_value + self.alpha * (new_value - old_value)
 
@@ -76,13 +76,14 @@ class StateModel:
                           for (lng, lat, hour) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75], [0, 1, 2])]
         self.num_maps = len(self.tile_maps)
 
-    def get_state_value(self, location, timestamp):
-        hour = ts_to_hour_of_week(timestamp)
-        return sum(self.tile_maps[i].get_state_value(location, hour) for i in range(self.num_maps)) / self.num_maps
+    def get_state_value(self, location, hour_of_week):
+        return sum(
+            self.tile_maps[i].get_state_value(location, hour_of_week) for i in range(self.num_maps)
+        ) / self.num_maps
 
-    def update_state_value(self, location, hour, new_value):
+    def update_state_value(self, location, hour_of_week, new_value):
         for tile_map in self.tile_maps:
-            tile_map.update_state_value(location, hour, new_value)
+            tile_map.update_state_value(location, hour_of_week, new_value)
 
 
 class Agent(object):
@@ -111,13 +112,13 @@ class Agent(object):
         else:
             self.state_model = StateModel()
 
-    def calc_order_assignment_value(self, order):
+    def calc_order_assignment_value(self, order, hour_of_week):
         completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
-        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'], order['timestamp'])
+        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'], hour_of_week)
         return completion_prob * order['reward_units'] + self.gamma * order_finish_state_value
 
-    def calc_current_driver_state_value(self, order):
-        return self.state_model.get_state_value(order['driver_location'], order['timestamp'])
+    def calc_current_driver_state_value(self, order, hour_of_week):
+        return self.state_model.get_state_value(order['driver_location'], hour_of_week)
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -137,9 +138,10 @@ class Agent(object):
         :return: a list of dict, the key in the dict includes:
                 order_id and driver_id, the pair indicating the assignment
         """
+        hour_of_week = ts_to_hour_of_week(dispatch_observ[0]['timestamp']) if dispatch_observ else 0
         for order in dispatch_observ:
-            order['current_value'] = self.calc_current_driver_state_value(order)
-            order['order_value'] = self.calc_order_assignment_value(order)
+            order['current_value'] = self.calc_current_driver_state_value(order, hour_of_week)
+            order['order_value'] = self.calc_order_assignment_value(order, hour_of_week)
         # TODO: Consider using 0.9 * current_value here?
         dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
         assigned_order = set()
@@ -147,7 +149,7 @@ class Agent(object):
         all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = (od['driver_location'], od['timestamp'], od['current_value'])
+            all_driver_locs[od['driver_id']] = (od['driver_location'], od['current_value'])
             if od['order_value'] < od['current_value']:
                 # Stop once driver orders are negative value
                 break
@@ -157,11 +159,11 @@ class Agent(object):
             assigned_order.add(od['order_id'])
             assigned_driver.add(od['driver_id'])
             dispatch_action.append(dict(order_id=od['order_id'], driver_id=od['driver_id']))
-            self.state_model.update_state_value(od['driver_location'], od['timestamp'], od['order_value'])
+            self.state_model.update_state_value(od['driver_location'], hour_of_week, od['order_value'])
 
-        for driver_id, (driver_loc, ts, state_value) in all_driver_locs.items():
+        for driver_id, (driver_loc, state_value) in all_driver_locs.items():
             if driver_id not in assigned_driver:
-                self.state_model.update_state_value(driver_loc, ts, self.unassigned_penalty * state_value)
+                self.state_model.update_state_value(driver_loc, hour_of_week, self.unassigned_penalty * state_value)
         return dispatch_action
 
     def reposition(self, repo_observ):
