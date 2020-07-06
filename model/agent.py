@@ -4,7 +4,7 @@ import os
 import pickle
 
 
-MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'saved_state_model.pickle')
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
 
 
 DEFAULT_GAMMA = 0.90       # Future reward discount
@@ -74,11 +74,16 @@ class Agent(object):
     @staticmethod
     def _load_state_model():
         with open(MODEL_PATH, 'rb') as f:
-            return pickle.load(f)
+            loaded_tile_maps = pickle.load(f)
+        sm = StateModel()
+        for (tm, loaded) in zip(sm.tile_maps, loaded_tile_maps):
+            tm.map = loaded
+        return sm
 
     def save_state_model(self, output_file_name):
+        map_list = [tm.map for tm in self.state_model.tile_maps]
         with open(output_file_name, 'wb') as f:
-            pickle.dump(self.state_model, f)
+            pickle.dump(map_list, f)
 
     def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=True):
         """ Load your trained model and initialize the parameters """
