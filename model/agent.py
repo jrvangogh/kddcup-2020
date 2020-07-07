@@ -17,7 +17,7 @@ DEFAULT_UP = 0.90               # Penalty applied to states containing unassigne
 DEFAULT_MAX_DEPTH = 5           # Max depth of each tree
 DEFAULT_MIN_SAMPLES_LEAF = 5    # Min number of samples in each leaf in each tree
 DEFAULT_NUM_TREES = 100         # The number of trees in the forest
-DEFAULT_EXP_DECAY = 0.9         # The decay used to weight older trees
+DEFAULT_EXP_DECAY = 0.99        # The decay used to weight older trees
 DEFAULT_SVI = 4.22              # State values initialized to this (average ride reward in offline data)
 
 
@@ -36,7 +36,9 @@ class FakeTree:
         self.predict_return = predict_return
 
     def predict(self, X):
-        return self.predict_return
+        arr = np.empty(X.shape[0])
+        arr.fill(self.predict_return)
+        return arr
 
 
 class StateModel:
@@ -56,11 +58,11 @@ class StateModel:
         self.min_samples_leaf = min_samples_leaf
         self.q = deque([FakeTree(predict_return=init_predict) for _ in range(num_trees)], maxlen=num_trees)
         self.exp_decay = exp_decay
-        self.tree_weights = np.power(self.exp_decay, np.arange(0, num_trees))
+        self.tree_weights = np.power(self.exp_decay, np.arange(0, num_trees)).reshape(num_trees, 1)
         self.total_weight = self.tree_weights.sum()
 
     def predict(self, X):
-        return (self.tree_weights * np.array([tree.predict(X) for tree in self.q])).sum() / self.total_weight
+        return (self.tree_weights * np.stack([tree.predict(X) for tree in self.q])).sum(axis=0) / self.total_weight
 
     def update(self, X, y):
         new_tree = DecisionTreeRegressor(max_depth=self.max_depth, min_samples_leaf=self.min_samples_leaf)
@@ -93,11 +95,11 @@ class Agent(object):
 
     def calc_order_assignment_value(self, order_df):
         completion_prob = 1.0 - cancel_probability(order_df['order_driver_distance'])
-        order_finish_state_value = self.state_model.predict(order_df[['finish_lng', 'finish_lat']])
+        order_finish_state_value = self.state_model.predict(order_df[['finish_lng', 'finish_lat']].to_numpy())
         return completion_prob * order_df['reward_units'] + self.gamma * order_finish_state_value
 
     def calc_current_driver_state_value(self, order_df):
-        return self.state_model.predict(order_df[['driver_lng', 'driver_lat']])
+        return self.state_model.predict(order_df[['driver_lng', 'driver_lat']].to_numpy())
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -148,7 +150,8 @@ class Agent(object):
             dispatch_action.append(dict(order_id=order_id, driver_id=driver_id))
             assign_df.at[driver_id, 'assign_value'] = row['order_value']
 
-        self.state_model.update(assign_df[['driver_lng', 'driver_lat']], assign_df['assign_value'])
+        self.state_model.update(assign_df[['driver_lng', 'driver_lat']].to_numpy(),
+                                assign_df['assign_value'].to_numpy().reshape(-1, 1))
         return dispatch_action
 
     def reposition(self, repo_observ):
