@@ -17,6 +17,7 @@ DEFAULT_UP = 0.90               # Penalty applied to states containing unassigne
 DEFAULT_MAX_DEPTH = 5           # Max depth of each tree
 DEFAULT_MIN_SAMPLES_LEAF = 5    # Min number of samples in each leaf in each tree
 DEFAULT_NUM_TREES = 100         # The number of trees in the forest
+DEFAULT_MIN_X_LEN = 50          # Minimum number of instances to train a tree on
 DEFAULT_EXP_DECAY = 0.99        # The decay used to weight older trees
 DEFAULT_SVI = 4.22              # State values initialized to this (average ride reward in offline data)
 
@@ -87,11 +88,14 @@ class Agent(object):
     #     with open(output_file_name, 'wb') as f:
     #         pickle.dump(map_list, f)
 
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP):
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, min_x_len=DEFAULT_MIN_X_LEN):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
         self.state_model = StateModel()
+        self.min_x_len = min_x_len
+        self.x_prep = []
+        self.x_prep_len = 0
 
     def calc_order_assignment_value(self, order_df):
         completion_prob = 1.0 - cancel_probability(order_df['order_driver_distance'])
@@ -150,8 +154,14 @@ class Agent(object):
             dispatch_action.append(dict(order_id=order_id, driver_id=driver_id))
             assign_df.at[driver_id, 'assign_value'] = row['order_value']
 
-        self.state_model.update(assign_df[['driver_lng', 'driver_lat']].to_numpy(),
-                                assign_df['assign_value'].to_numpy().reshape(-1, 1))
+        self.x_prep.append(assign_df)
+        self.x_prep_len += assign_df.shape[0]
+        if self.x_prep_len >= self.min_x_len:
+            x_df = pd.concat(self.x_prep, ignore_index=True)
+            self.state_model.update(x_df[['driver_lng', 'driver_lat']].to_numpy(),
+                                    x_df['assign_value'].to_numpy().reshape(-1, 1))
+            self.x_prep = []
+            self.x_prep_len = 0
         return dispatch_action
 
     def reposition(self, repo_observ):
