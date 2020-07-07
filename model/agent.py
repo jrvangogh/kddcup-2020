@@ -1,16 +1,24 @@
 import numpy as np
-from itertools import product
 import os
-import pickle
+import warnings
+import pandas as pd
+from collections import deque
+from sklearn.tree import DecisionTreeRegressor
+
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
 
 
-DEFAULT_GAMMA = 0.90       # Future reward discount
-DEFAULT_UP = 0.90          # Penalty applied to states containing unassigned drivers
-DEFAULT_ALPHA = 0.25       # SARSA learning rate
-DEFAULT_SVI = 4.22         # State values initialized to this (average ride reward in offline data)
+DEFAULT_GAMMA = 0.90            # Future reward discount
+DEFAULT_UP = 0.90               # Penalty applied to states containing unassigned drivers
+DEFAULT_MAX_DEPTH = 5           # Max depth of each tree
+DEFAULT_MIN_SAMPLES_LEAF = 5    # Min number of samples in each leaf in each tree
+DEFAULT_NUM_TREES = 100         # The number of trees in the forest
+DEFAULT_EXP_DECAY = 0.9         # The decay used to weight older trees
+DEFAULT_SVI = 4.22              # State values initialized to this (average ride reward in offline data)
 
 
 def cancel_probability(order_driver_distance):
@@ -22,85 +30,74 @@ def cancel_probability(order_driver_distance):
     return 1 / (np.exp(4.39349586 - 0.00109042 * order_driver_distance) + 1) + 0.02
 
 
-class TileMap:
-    """Stores state values by tiling a (lng, lat) grid
+class FakeTree:
 
-    Longitudes and latitudes are rounded to the nearest 100th (potentially with some offsetting).
-    """
+    def __init__(self, predict_return=DEFAULT_SVI):
+        self.predict_return = predict_return
 
-    def __init__(self, lng_offset, lat_offset, state_value_init=DEFAULT_SVI, alpha=DEFAULT_ALPHA):
-        self.state_value_init = state_value_init
-        self.alpha = alpha
-        self.map = {}
-        self.lng_offset = lng_offset
-        self.lat_offset = lat_offset
-
-    def _loc_key(self, location):
-        """Get the key for the map associated with the given location"""
-        return int(location[0] * 100 + self.lng_offset), int(location[1] * 100 + self.lat_offset)
-
-    def get_state_value(self, location):
-        """Get the state value for the given location"""
-        return self.map.get(self._loc_key(location), self.state_value_init)
-
-    def update_state_value(self, location, new_value):
-        """Update the state value for the given location based on the given new value
-
-        Updates by self.alpha * (new_value - old_value)
-        """
-        key = self._loc_key(location)
-        old_value = self.map.get(key, self.state_value_init)
-        self.map[key] = old_value + self.alpha * (new_value - old_value)
+    def predict(self, X):
+        return self.predict_return
 
 
 class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
-    def __init__(self):
-        self.tile_maps = [TileMap(lng, lat) for (lng, lat) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75])]
-        self.num_maps = len(self.tile_maps)
+    FEATUREs = ['']
 
-    def get_state_value(self, location):
-        return sum(self.tile_maps[i].get_state_value(location) for i in range(self.num_maps)) / self.num_maps
+    def __init__(
+            self,
+            max_depth=DEFAULT_MAX_DEPTH,
+            min_samples_leaf=DEFAULT_MIN_SAMPLES_LEAF,
+            init_predict=DEFAULT_SVI,
+            num_trees=DEFAULT_NUM_TREES,
+            exp_decay=DEFAULT_EXP_DECAY,
+    ):
+        self.max_depth = max_depth
+        self.min_samples_leaf = min_samples_leaf
+        self.q = deque([FakeTree(predict_return=init_predict) for _ in range(num_trees)], maxlen=num_trees)
+        self.exp_decay = exp_decay
+        self.tree_weights = np.power(self.exp_decay, np.arange(0, num_trees))
+        self.total_weight = self.tree_weights.sum()
 
-    def update_state_value(self, location, new_value):
-        for tile_map in self.tile_maps:
-            tile_map.update_state_value(location, new_value)
+    def predict(self, X):
+        return (self.tree_weights * np.array([tree.predict(X) for tree in self.q])).sum() / self.total_weight
+
+    def update(self, X, y):
+        new_tree = DecisionTreeRegressor(max_depth=self.max_depth, min_samples_leaf=self.min_samples_leaf)
+        new_tree.fit(X, y)
+        self.q.append(new_tree)
 
 
 class Agent(object):
     """ Agent for dispatching and reposition """
 
-    @staticmethod
-    def _load_state_model():
-        with open(MODEL_PATH, 'rb') as f:
-            loaded_tile_maps = pickle.load(f)
-        sm = StateModel()
-        for (tm, loaded) in zip(sm.tile_maps, loaded_tile_maps):
-            tm.map = loaded
-        return sm
+    # @staticmethod
+    # def _load_state_model():
+    #     with open(MODEL_PATH, 'rb') as f:
+    #         loaded_tile_maps = pickle.load(f)
+    #     sm = StateModel()
+    #     for (tm, loaded) in zip(sm.tile_maps, loaded_tile_maps):
+    #         tm.map = loaded
+    #     return sm
+    #
+    # def save_state_model(self, output_file_name):
+    #     map_list = [tm.map for tm in self.state_model.tile_maps]
+    #     with open(output_file_name, 'wb') as f:
+    #         pickle.dump(map_list, f)
 
-    def save_state_model(self, output_file_name):
-        map_list = [tm.map for tm in self.state_model.tile_maps]
-        with open(output_file_name, 'wb') as f:
-            pickle.dump(map_list, f)
-
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=True):
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
-        if load_state_model:
-            self.state_model = self._load_state_model()
-        else:
-            self.state_model = StateModel()
+        self.state_model = StateModel()
 
-    def calc_order_assignment_value(self, order):
-        completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
-        order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'])
-        return completion_prob * order['reward_units'] + self.gamma * order_finish_state_value
+    def calc_order_assignment_value(self, order_df):
+        completion_prob = 1.0 - cancel_probability(order_df['order_driver_distance'])
+        order_finish_state_value = self.state_model.predict(order_df[['finish_lng', 'finish_lat']])
+        return completion_prob * order_df['reward_units'] + self.gamma * order_finish_state_value
 
-    def calc_current_driver_state_value(self, order):
-        return self.state_model.get_state_value(order['driver_location'])
+    def calc_current_driver_state_value(self, order_df):
+        return self.state_model.predict(order_df[['driver_lng', 'driver_lat']])
 
     def dispatch(self, dispatch_observ):
         """ Compute the assignment between drivers and passengers at each time step
@@ -120,31 +117,38 @@ class Agent(object):
         :return: a list of dict, the key in the dict includes:
                 order_id and driver_id, the pair indicating the assignment
         """
-        for order in dispatch_observ:
-            order['current_value'] = self.calc_current_driver_state_value(order)
-            order['order_value'] = self.calc_order_assignment_value(order)
-        # TODO: Consider using 0.9 * current_value here?
-        dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
+        if not dispatch_observ:
+            return []
+        order_df = pd.DataFrame.from_records(dispatch_observ)
+        order_df['driver_lng'], order_df['driver_lat'] = order_df['driver_location'].str
+        order_df['finish_lng'], order_df['finish_lat'] = order_df['order_finish_location'].str
+        order_df['current_value'] = self.calc_current_driver_state_value(order_df)
+        order_df['order_value'] = self.calc_order_assignment_value(order_df)
+        order_df['net_value'] = order_df['order_value'] - self.gamma * order_df['current_value']
+        order_df = order_df.sort_values(by='net_value', ascending=False)
+
+        assign_df = order_df[['driver_id', 'driver_lng', 'driver_lat', 'current_value']]\
+            .drop_duplicates(subset=['driver_id'])\
+            .set_index('driver_id')
+        assign_df['assign_value'] = self.gamma * assign_df['current_value']
         assigned_order = set()
         assigned_driver = set()
-        all_driver_locs = {}
         dispatch_action = []
-        for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = (od['driver_location'], od['current_value'])
-            if od['order_value'] < od['current_value']:
+        for _, row in order_df.iterrows():
+            order_id = row['order_id']
+            driver_id = row['driver_id']
+            if row['order_value'] < row['current_value']:
                 # Stop once driver orders are negative value
                 break
             # make sure each order is assigned to one driver, and each driver is assigned with one order
-            if (od['order_id'] in assigned_order) or (od['driver_id'] in assigned_driver):
+            if (order_id in assigned_order) or (driver_id in assigned_driver):
                 continue
-            assigned_order.add(od['order_id'])
-            assigned_driver.add(od['driver_id'])
-            dispatch_action.append(dict(order_id=od['order_id'], driver_id=od['driver_id']))
-            self.state_model.update_state_value(od['driver_location'], od['order_value'])
+            assigned_order.add(order_id)
+            assigned_driver.add(driver_id)
+            dispatch_action.append(dict(order_id=order_id, driver_id=driver_id))
+            assign_df.at[driver_id, 'assign_value'] = row['order_value']
 
-        for driver_id, (driver_loc, state_value) in all_driver_locs.items():
-            if driver_id not in assigned_driver:
-                self.state_model.update_state_value(driver_loc, self.unassigned_penalty * state_value)
+        self.state_model.update(assign_df[['driver_lng', 'driver_lat']], assign_df['assign_value'])
         return dispatch_action
 
     def reposition(self, repo_observ):
