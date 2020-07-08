@@ -70,8 +70,8 @@ def main():
 
     nested = [make_iter_list(date_list, gamma, unassigned_penalty, alpha)
               for (gamma, unassigned_penalty, alpha) in PARAMS]
-    flat = list(chain.from_iterable(nested))
-    pool = Pool(processes=len(flat))
+    flat = sorted(chain.from_iterable(nested), key=lambda d: d['ds'])
+    pool = Pool(processes=80)
     pool.map(get_metrics, [t for t in enumerate(flat)])
 
 
