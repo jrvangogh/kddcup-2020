@@ -71,8 +71,8 @@ class TileMap:
 class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
-    def __init__(self):
-        self.tile_maps = [TileMap(lng, lat, hour)
+    def __init__(self, alpha):
+        self.tile_maps = [TileMap(lng, lat, hour, alpha=alpha)
                           for (lng, lat, hour) in product([0.0, 0.25, 0.5, 0.75], [0.0, 0.25, 0.5, 0.75], [0, 1, 2])]
         self.num_maps = len(self.tile_maps)
 
@@ -103,14 +103,14 @@ class Agent(object):
         with open(output_file_name, 'wb') as f:
             pickle.dump(map_list, f)
 
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, load_state_model=False):
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, alpha=DEFAULT_ALPHA, load_state_model=False):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
         if load_state_model:
             self.state_model = self._load_state_model()
         else:
-            self.state_model = StateModel()
+            self.state_model = StateModel(alpha=alpha)
 
     def calc_order_assignment_value(self, order, hour_of_week):
         completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
@@ -139,17 +139,23 @@ class Agent(object):
                 order_id and driver_id, the pair indicating the assignment
         """
         hour_of_week = ts_to_hour_of_week(dispatch_observ[0]['timestamp']) if dispatch_observ else 0
+        all_driver_locs = {}
         for order in dispatch_observ:
-            order['current_value'] = self.calc_current_driver_state_value(order, hour_of_week)
+            driver_id = order['driver_id']
+            if driver_id in all_driver_locs:
+                order['current_value'] = all_driver_locs[driver_id][1]
+            else:
+                order['current_value'] = self.calc_current_driver_state_value(order, hour_of_week)
+                all_driver_locs[order['driver_id']] = (order['driver_location'], order['current_value'])
             order['order_value'] = self.calc_order_assignment_value(order, hour_of_week)
-        # TODO: Consider using 0.9 * current_value here?
-        dispatch_observ.sort(key=lambda o_dict: o_dict['order_value'] - o_dict['current_value'], reverse=True)
+        dispatch_observ.sort(
+            key=lambda o_dict: o_dict['order_value'] - self.unassigned_penalty * o_dict['current_value'],
+            reverse=True
+        )
         assigned_order = set()
         assigned_driver = set()
-        all_driver_locs = {}
         dispatch_action = []
         for od in dispatch_observ:
-            all_driver_locs[od['driver_id']] = (od['driver_location'], od['current_value'])
             if od['order_value'] < od['current_value']:
                 # Stop once driver orders are negative value
                 break
