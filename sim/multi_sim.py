@@ -1,10 +1,14 @@
 from model.agent import Agent
+from typing import List
 from sim.simulator import Simulator
 from multiprocessing import Pool
 import json
-import numpy as np
-from datetime import datetime
 import sys
+from itertools import product, chain
+from pathlib import Path
+
+
+SAVE_DIR = Path(__file__).parent.parent.resolve() / 'sim_results'
 
 
 DATES = [
@@ -28,35 +32,61 @@ DATES_SMALL = [
     '20161130_small',
 ]
 
+GAMMAS = [0.90]
+UNASSIGNED_PENALTIES = [0.90]
+MIN_X = [25, 50, 100, 200]
+EXP_DECAY = [0.97]
+MAX_DEPTH = [3, 5, 7]
+NUM_TREES = [100]
+PARAMS = product(GAMMAS, UNASSIGNED_PENALTIES, MIN_X, EXP_DECAY, MAX_DEPTH, NUM_TREES)
 
-def get_metrics(ds: str):
-    s = Simulator(Agent(), ds, disable_progress_bar=False)
-    return s.run()
+
+def get_metrics(tup):
+    i, kwarg_dict = tup
+    ds = kwarg_dict['ds']
+    gamma = kwarg_dict['gamma']
+    unassigned_penalty = kwarg_dict['unassigned_penalty']
+    min_x = kwarg_dict['min_x']
+    num_trees = kwarg_dict['num_trees']
+    max_depth = kwarg_dict['max_depth']
+    agent = Agent(
+        gamma=gamma,
+        unassigned_penalty=unassigned_penalty,
+        min_x_len=min_x,
+        num_trees=num_trees,
+        max_depth=max_depth,
+    )
+    s = Simulator(agent, ds)
+    metrics = s.run()
+    metrics.update(kwarg_dict)
+    output_file = SAVE_DIR / f'{i:03d}.json'
+    with open(output_file, 'wt') as f:
+        json.dump(metrics, f, indent=4)
+
+
+def make_iter_list(date_list: List[str], gamma: float, unassigned_penalty: float,
+                   min_x: int, exp_decay: float, max_depth: int, num_trees: int):
+    kwarg_dict = [{'ds': ds, 'gamma': gamma, 'unassigned_penalty': unassigned_penalty,
+                   'min_x': min_x, 'exp_decay': exp_decay, 'num_trees': num_trees, 'max_depth': max_depth}
+                  for ds in date_list]
+    return kwarg_dict
 
 
 def main():
+    SAVE_DIR.mkdir(exist_ok=True)
     use_small = len(sys.argv) > 1 and sys.argv[1].startswith('s')
-    pool = Pool(processes=7)
     if use_small:
         print('Using small versions of orders and drivers')
-        metrics = pool.map(get_metrics, DATES_SMALL)
+        date_list = DATES_SMALL
     else:
         print('Using normal versions of orders and drivers')
-        metrics = pool.map(get_metrics, DATES)
-    avg_dict = {}
-    for k in metrics[0].keys():
-        avg_dict[k] = np.mean([m[k] for m in metrics])
-    full_output = {
-        'averages': avg_dict,
-        'individual_days': metrics
-    }
-    if use_small:
-        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_small.json'
-    else:
-        output_file_name = f'{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}_output.json'
-    print(f'Saving to {output_file_name}')
-    with open(output_file_name, 'wt') as f:
-        json.dump(full_output, f, indent=4)
+        date_list = DATES
+
+    nested = [make_iter_list(date_list, gamma, unassigned_penalty, min_x, exp_decay, max_depth, num_trees)
+              for (gamma, unassigned_penalty, min_x, exp_decay, max_depth, num_trees) in PARAMS]
+    flat = sorted(chain.from_iterable(nested), key=lambda d: d['ds'])
+    pool = Pool(processes=30)
+    pool.map(get_metrics, [t for t in enumerate(flat)])
 
 
 if __name__ == '__main__':

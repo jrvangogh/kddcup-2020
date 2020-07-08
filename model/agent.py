@@ -45,8 +45,6 @@ class FakeTree:
 class StateModel:
     """A state value map that uses a coarse tiling for 4 TileMaps"""
 
-    FEATUREs = ['']
-
     def __init__(
             self,
             max_depth=DEFAULT_MAX_DEPTH,
@@ -88,11 +86,18 @@ class Agent(object):
     #     with open(output_file_name, 'wb') as f:
     #         pickle.dump(map_list, f)
 
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, min_x_len=DEFAULT_MIN_X_LEN):
+    def __init__(
+            self,
+            gamma=DEFAULT_GAMMA,
+            unassigned_penalty=DEFAULT_UP,
+            min_x_len=DEFAULT_MIN_X_LEN,
+            num_trees=DEFAULT_NUM_TREES,
+            max_depth=DEFAULT_MAX_DEPTH,
+    ):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
-        self.state_model = StateModel()
+        self.state_model = StateModel(num_trees=num_trees, max_depth=max_depth)
         self.min_x_len = min_x_len
         self.x_prep = []
         self.x_prep_len = 0
