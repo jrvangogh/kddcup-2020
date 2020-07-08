@@ -90,10 +90,10 @@ class Agent(object):
     """ Agent for dispatching and reposition """
 
     @staticmethod
-    def _load_state_model():
+    def _load_state_model(alpha):
         with open(MODEL_PATH, 'rb') as f:
             loaded_tile_maps = pickle.load(f)
-        sm = StateModel()
+        sm = StateModel(alpha)
         for (tm, loaded) in zip(sm.tile_maps, loaded_tile_maps):
             tm.map = loaded
         return sm
@@ -103,12 +103,12 @@ class Agent(object):
         with open(output_file_name, 'wb') as f:
             pickle.dump(map_list, f)
 
-    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, alpha=DEFAULT_ALPHA, load_state_model=False):
+    def __init__(self, gamma=DEFAULT_GAMMA, unassigned_penalty=DEFAULT_UP, alpha=DEFAULT_ALPHA, load_state_model=True):
         """ Load your trained model and initialize the parameters """
         self.gamma = gamma
         self.unassigned_penalty = unassigned_penalty
         if load_state_model:
-            self.state_model = self._load_state_model()
+            self.state_model = self._load_state_model(alpha)
         else:
             self.state_model = StateModel(alpha=alpha)
 
