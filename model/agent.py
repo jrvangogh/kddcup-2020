@@ -5,6 +5,7 @@ import pickle
 from datetime import datetime
 import pytz
 
+from model.cancel_prob import CancelProb
 
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
 
@@ -112,8 +113,11 @@ class Agent(object):
         else:
             self.state_model = StateModel(alpha=alpha)
 
+        self.cancel_prob = CancelProb()
+
     def calc_order_assignment_value(self, order, hour_of_week):
-        completion_prob = 1.0 - cancel_probability(order['order_driver_distance'])
+        completion_prob = 1.0 - self.cancel_prob.cancel_probability(
+            order['order_driver_distance'], order['order_start_location'])
         order_finish_state_value = self.state_model.get_state_value(order['order_finish_location'], hour_of_week)
         return completion_prob * order['reward_units'] + self.gamma * order_finish_state_value
 
