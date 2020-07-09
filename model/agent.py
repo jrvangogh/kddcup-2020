@@ -9,9 +9,9 @@ import pytz
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tile_maps.pickle')
 
 
-DEFAULT_GAMMA = 0.90       # Future reward discount
-DEFAULT_UP = 0.90          # Penalty applied to states containing unassigned drivers
-DEFAULT_ALPHA = 0.25       # SARSA learning rate
+DEFAULT_GAMMA = 0.80       # Future reward discount
+DEFAULT_UP = 0.80          # Penalty applied to states containing unassigned drivers
+DEFAULT_ALPHA = 0.20       # SARSA learning rate
 DEFAULT_SVI = 4.22         # State values initialized to this (average ride reward in offline data)
 
 
