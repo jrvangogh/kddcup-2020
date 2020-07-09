@@ -46,7 +46,7 @@ class CancelProb:
         city_dist = self._distance_from_city_center(pickup_loc[0], pickup_loc[1])
         cancel_probs = [spl(city_dist) for spl in self.splines]
 
-        f = interpolate.interp1d(CANCEL_PROB_DISTANCES, cancel_probs)
+        f = interpolate.interp1d(CANCEL_PROB_DISTANCES, cancel_probs, fill_value='extrapolate')
         return f(order_driver_distance)
 
     @staticmethod
