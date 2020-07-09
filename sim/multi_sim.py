@@ -72,6 +72,11 @@ def make_iter_list(date_list: List[str], gamma: float, unassigned_penalty: float
     return kwarg_dict
 
 
+def not_done(i):
+    output_file = SAVE_DIR / f'{i:03d}.json'
+    return not output_file.exists()
+
+
 def main():
     SAVE_DIR.mkdir(exist_ok=True)
     use_small = len(sys.argv) > 1 and sys.argv[1].startswith('s')
@@ -86,7 +91,8 @@ def main():
               for (gamma, unassigned_penalty, min_x, exp_decay, max_depth, num_trees) in PARAMS]
     flat = sorted(chain.from_iterable(nested), key=lambda d: d['ds'])
     pool = Pool(processes=30)
-    pool.map(get_metrics, [t for t in enumerate(flat)])
+    enumerated = [t for t in enumerate(flat) if not_done(t[0])]
+    pool.map(get_metrics, enumerated)
 
 
 if __name__ == '__main__':

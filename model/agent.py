@@ -17,8 +17,8 @@ DEFAULT_UP = 0.90               # Penalty applied to states containing unassigne
 DEFAULT_MAX_DEPTH = 5           # Max depth of each tree
 DEFAULT_MIN_SAMPLES_LEAF = 5    # Min number of samples in each leaf in each tree
 DEFAULT_NUM_TREES = 100         # The number of trees in the forest
-DEFAULT_MIN_X_LEN = 50          # Minimum number of instances to train a tree on
-DEFAULT_EXP_DECAY = 0.99        # The decay used to weight older trees
+DEFAULT_MIN_X_LEN = 100         # Minimum number of instances to train a tree on
+DEFAULT_EXP_DECAY = 0.97        # The decay used to weight older trees
 DEFAULT_SVI = 4.22              # State values initialized to this (average ride reward in offline data)
 
 
